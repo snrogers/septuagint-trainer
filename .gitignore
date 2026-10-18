@@ -1,0 +1,12 @@
+.venv-tts/
+__pycache__/
+*.pyc
+data/audio/
+data/lxx.db
+data/lxx.db-shm
+data/lxx.db-wal
+data/progress.db
+data/progress.db-shm
+data/progress.db-wal
+data/raw/
+data/voices/

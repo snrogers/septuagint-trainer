@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<title>Septuagint Reader</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231b3c62%22/%3E%3Ctext x=%2216%22 y=%2225%22 font-size=%2224%22 text-anchor=%22middle%22 fill=%22%23ffffff%22 font-family=%22Georgia,serif%22%3E%CE%A9%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="loadbar" aria-hidden="true"></div>
+
+<div class="chrome" id="chrome">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">Ω</span>
+      <span class="brand-text">
+        <span class="brand-greek">Ἡ Γραφή</span>
+        <span class="brand-sub">Septuagint reading trainer</span>
+      </span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab is-active" data-view="read" role="tab" aria-selected="true">Read</button>
+      <button class="tab" data-view="bible" role="tab" aria-selected="false">Bible</button>
+      <button class="tab" data-view="drill" role="tab" aria-selected="false">Drill <span class="badge" id="badge-drill" hidden>0</span></button>
+      <button class="tab" data-view="vocab" role="tab" aria-selected="false">Vocabulary</button>
+      <button class="tab" data-view="progress" role="tab" aria-selected="false">Progress</button>
+    </nav>
+  </header>
+
+  <div class="statusbar" id="statusbar">
+    <div class="stat" title="The verse you will read next"><span class="stat-label">Position</span><span class="stat-value" id="st-ref">—</span></div>
+    <div class="stat" title="Verses you marked as read"><span class="stat-label">Verses read</span><span class="stat-value" id="st-read">—</span></div>
+    <div class="stat" title="Words at review stage in your deck"><span class="stat-label">Words known</span><span class="stat-value" id="st-known">—</span></div>
+    <div class="stat" title="Share of all running text made of words you know"><span class="stat-label">Text you can read</span><span class="stat-value" id="st-cov">—</span></div>
+    <div class="stat" title="Cards due plus new cards available today"><span class="stat-label">Due now</span><span class="stat-value" id="st-due">—</span></div>
+  </div>
+</div>
+
+<main>
+
+<!-- ─────────────── READ ─────────────── -->
+<section class="view is-active" id="view-read" role="tabpanel" aria-label="Read">
+  <div class="toolbar">
+    <label>Show
+      <select id="read-n" aria-label="Verses per page">
+        <option>1</option><option>3</option><option selected>5</option>
+        <option>10</option><option>20</option><option>40</option>
+      </select> verses
+    </label>
+    <label class="switch" title="Show the short meaning under each word">
+      <input type="checkbox" id="opt-gloss" checked> Glosses
+    </label>
+    <button id="btn-reload" class="btn">Refresh</button>
+    <span class="spacer"></span>
+    <button id="btn-back" class="btn">← Back</button>
+    <button id="btn-advance" class="btn btn-primary">Mark read &amp; continue →</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw sw-unknown"></i> not yet studied</span>
+    <span><i class="sw sw-learning"></i> learning</span>
+    <span><i class="sw sw-known"></i> known</span>
+    <span class="legend-hint">click any word for details</span>
+  </div>
+
+  <div id="verses" class="verses"></div>
+
+  <div class="panel" id="upcoming">
+    <div class="panel-head">
+      <h2>New words in this passage</h2>
+      <button id="btn-queue" class="btn btn-primary">Make flashcards</button>
+    </div>
+    <div id="newwords" class="chips"></div>
+  </div>
+</section>
+
+<!-- ─────────────── BIBLE ─────────────── -->
+<section class="view" id="view-bible" role="tabpanel" aria-label="Bible">
+  <form class="toolbar bible-toolbar" id="bible-jump">
+    <label>Book
+      <select id="bible-book" aria-label="Book" disabled>
+        <option>Loading…</option>
+      </select>
+    </label>
+    <label>Chapter
+      <select id="bible-chapter" aria-label="Chapter" disabled></select>
+    </label>
+    <label>Verse
+      <select id="bible-verse" aria-label="Verse" disabled></select>
+    </label>
+    <label>Show
+      <select id="bible-n" aria-label="Verses per page">
+        <option>1</option><option>5</option><option selected>10</option>
+        <option>20</option><option>40</option>
+      </select> verses
+    </label>
+    <button class="btn btn-primary" id="bible-go" type="submit" disabled>Go</button>
+    <span class="spacer"></span>
+    <label class="switch" title="Show the short meaning under each word">
+      <input type="checkbox" id="bible-opt-gloss" checked> Glosses
+    </label>
+  </form>
+
+  <div class="legend">
+    <span><i class="sw sw-unknown"></i> not yet studied</span>
+    <span><i class="sw sw-learning"></i> learning</span>
+    <span><i class="sw sw-known"></i> known</span>
+    <span class="legend-hint">browsing does not change your reading position</span>
+  </div>
+
+  <nav class="passage-nav" aria-label="Passage pages">
+    <button class="btn" type="button" data-bible-page="previous" disabled>← Previous</button>
+    <output class="bible-range" aria-live="polite">Choose a passage</output>
+    <button class="btn" type="button" data-bible-page="next" disabled>Next →</button>
+  </nav>
+
+  <div id="bible-verses" class="verses"></div>
+
+  <nav class="passage-nav passage-nav-bottom" aria-label="Passage pages">
+    <button class="btn" type="button" data-bible-page="previous" disabled>← Previous</button>
+    <output class="bible-range" aria-hidden="true">Choose a passage</output>
+    <button class="btn" type="button" data-bible-page="next" disabled>Next →</button>
+  </nav>
+</section>
+
+<!-- ─────────────── DRILL ─────────────── -->
+<section class="view" id="view-drill" role="tabpanel" aria-label="Drill">
+  <div id="drill-empty" class="empty" hidden>
+    <h2>Nothing due right now</h2>
+    <p>Add words from your next passage in the <b>Read</b> tab, or start a
+       frequency-first core deck below — the most common words in the
+       Septuagint, which do the most work per card you learn.</p>
+    <div class="core-actions">
+      <button class="btn btn-primary" data-core="50">Add top 50</button>
+      <button class="btn" data-core="100">Top 100</button>
+      <button class="btn" data-core="300">Top 300</button>
+    </div>
+  </div>
+
+  <div id="drill-card" class="card" hidden>
+    <div class="card-meta">
+      <span id="card-state" class="pill"></span>
+      <span id="card-freq" class="muted"></span>
+    </div>
+    <div class="card-front" id="card-front"></div>
+    <div class="card-say" id="card-say" hidden>
+      <button class="btn btn-say" id="btn-card-say" title="Hear it (S)">
+        <span class="ico">▶</span> Hear it <kbd>s</kbd>
+      </button>
+      <label class="switch" title="Speak each new card as it appears">
+        <input type="checkbox" id="opt-autoplay" checked> Play automatically
+      </label>
+    </div>
+    <div class="card-back" id="card-back" hidden>
+      <div class="gloss" id="card-gloss"></div>
+      <div class="gloss-long" id="card-gloss-long"></div>
+      <div class="example" id="card-example"></div>
+    </div>
+    <div class="card-actions">
+      <button id="btn-reveal" class="btn btn-primary btn-wide">Show answer <kbd>space</kbd></button>
+      <div id="grade-buttons" class="grades" hidden>
+        <button class="btn grade grade-again" data-grade="0">Again <kbd>1</kbd></button>
+        <button class="btn grade grade-hard"  data-grade="1">Hard <kbd>2</kbd></button>
+        <button class="btn grade grade-good"  data-grade="2">Good <kbd>3</kbd></button>
+        <button class="btn grade grade-easy"  data-grade="3">Easy <kbd>4</kbd></button>
+      </div>
+    </div>
+    <div class="queue-line" id="queue-line"></div>
+  </div>
+</section>
+
+<!-- ─────────────── VOCAB ─────────────── -->
+<section class="view" id="view-vocab" role="tabpanel" aria-label="Vocabulary">
+  <div class="toolbar">
+    <label>Core deck: highest-frequency words not yet queued</label>
+    <span class="spacer"></span>
+    <button class="btn btn-primary" data-core="25">Add next 25</button>
+    <button class="btn" data-core="100">Add next 100</button>
+  </div>
+  <div id="corelist" class="table-wrap"></div>
+</section>
+
+<!-- ─────────────── PROGRESS ─────────────── -->
+<section class="view" id="view-progress" role="tabpanel" aria-label="Progress">
+  <div id="progress-body"></div>
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Your progress lives in this browser</h2>
+      <div class="panel-actions">
+        <button id="btn-export" class="btn">Export</button>
+        <button id="btn-import" class="btn">Import</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <p class="muted keep-note" id="keep-note"></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="pagefoot">
+  <span><b>Alt-click</b> a word to hear it</span>
+  <span><b>Click</b> a word for the full entry</span>
+  <span>In Drill: <b>space</b> shows the answer, <b>1</b>–<b>4</b> grade it, <b>s</b> speaks it</span>
+</footer>
+
+<!-- word detail -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Word detail">
+    <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="/progress.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
