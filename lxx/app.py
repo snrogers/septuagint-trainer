@@ -19,7 +19,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import db, tts
-from .morph import describe, pos_name
+from .morph import (CASE, DEGREE, GENDER, MOOD, NUMBER, PERSON, TENSE, VOICE,
+                    describe, parse_parts, pos_name)
 
 WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
 
@@ -333,7 +334,166 @@ def lemma_detail(con: sqlite3.Connection, lemma_id: int) -> dict:
     ]
     for occ in data["occurrences"]:
         occ["parse_text"] = describe(occ["pos"], occ["parse"])
+    data["paradigm"] = lemma_paradigm(con, lemma_id)
     return data
+
+
+# Canonical display orders for paradigm tables. Letters absent from a lemma's
+# attested forms simply never appear; numbers/cases present only in odd cells
+# (e.g. a lone dual) still get their column/row.
+_CASE_ORDER = list(CASE)
+_NUMBER_ORDER = list(NUMBER)
+_GENDER_ORDER = list(GENDER)
+_DEGREE_ORDER = [None, *DEGREE]
+_TENSE_ORDER = list(TENSE)
+_VOICE_ORDER = list(VOICE)
+_MOOD_ORDER = ["I", "D", "S", "O"]
+_PERSON_ORDER = list(PERSON)
+
+
+def _paradigm_cell(cells: dict, key, surface: str, count: int) -> None:
+    cell = cells.setdefault(key, {})
+    cell[surface] = cell.get(surface, 0) + count
+
+
+def _cell_out(forms: dict) -> dict:
+    """One table cell: distinct forms, most frequent first, plus total count."""
+    ordered = sorted(forms.items(), key=lambda kv: -kv[1])
+    return {"forms": [f for f, _ in ordered],
+            "count": sum(forms.values())}
+
+
+def _declension_tables(cells: dict) -> list[dict]:
+    """Nominal cells -> one table per (gender, degree) actually attested.
+
+    cells maps (gender, degree, case, number) -> {surface: count}.
+    """
+    tables = []
+    for gender in [*_GENDER_ORDER, None]:
+        for degree in _DEGREE_ORDER:
+            rows = []
+            for case in _CASE_ORDER:
+                row_cells = {}
+                for number in _NUMBER_ORDER:
+                    forms = cells.get((gender, degree, case, number))
+                    if forms:
+                        row_cells[number] = _cell_out(forms)
+                if row_cells:
+                    rows.append({"case": case, "label": CASE[case],
+                                 "cells": row_cells})
+            if rows:
+                tables.append({
+                    "gender": gender,
+                    "gender_label": GENDER[gender] if gender else None,
+                    "degree": degree,
+                    "degree_label": DEGREE[degree] if degree else None,
+                    "numbers": [n for n in _NUMBER_ORDER
+                                if any(n in r["cells"] for r in rows)],
+                    "rows": rows,
+                })
+    return tables
+
+
+def lemma_paradigm(con: sqlite3.Connection, lemma_id: int) -> dict | None:
+    """Declension/conjugation tables built from the lemma's attested forms.
+
+    Only forms the corpus actually contains appear; a cell with no attested
+    form is left empty rather than filled from a textbook paradigm. Returns
+    None for indeclinable words and lemmas with no parsed tokens.
+    """
+    rows = con.execute(
+        """
+        SELECT surface, pos, parse, COUNT(*) AS n FROM tokens
+        WHERE lemma_id = ? AND parse IS NOT NULL AND parse != ''
+        GROUP BY surface, pos, parse
+        """,
+        (lemma_id,),
+    ).fetchall()
+
+    nominal_cells: dict = {}
+    finite_cells: dict = {}
+    participle_cells: dict = {}
+    infinitive_forms: dict = {}
+    for row in rows:
+        parts = parse_parts(row["pos"], row["parse"])
+        if parts is None:
+            continue
+        surface, n = row["surface"], row["n"]
+        if parts["form"] == "nominal":
+            key = (parts.get("gender"), parts.get("degree"),
+                   parts["case"], parts["number"])
+            _paradigm_cell(nominal_cells, key, surface, n)
+        elif parts["form"] == "finite":
+            key = (parts["tense"], parts["voice"], parts["mood"],
+                   parts["person"], parts["number"])
+            _paradigm_cell(finite_cells, key, surface, n)
+        elif parts["form"] == "participle":
+            key = (parts["tense"], parts["voice"], parts.get("gender"),
+                   parts.get("degree"), parts["case"], parts["number"])
+            _paradigm_cell(participle_cells, key, surface, n)
+        elif parts["form"] == "infinitive":
+            key = (parts["tense"], parts["voice"])
+            _paradigm_cell(infinitive_forms, key, surface, n)
+
+    sections: list[dict] = []
+
+    tables = _declension_tables(nominal_cells)
+    if tables:
+        sections.append({"kind": "declension", "tables": tables})
+
+    for tense in _TENSE_ORDER:
+        for voice in _VOICE_ORDER:
+            for mood in _MOOD_ORDER:
+                prows = []
+                for person in _PERSON_ORDER:
+                    row_cells = {}
+                    for number in _NUMBER_ORDER:
+                        forms = finite_cells.get((tense, voice, mood,
+                                                  person, number))
+                        if forms:
+                            row_cells[number] = _cell_out(forms)
+                    if row_cells:
+                        prows.append({"person": person,
+                                      "label": PERSON[person],
+                                      "cells": row_cells})
+                if prows:
+                    sections.append({
+                        "kind": "conjugation",
+                        "label": f"{TENSE[tense]} {VOICE[voice]} "
+                                 f"{MOOD[mood]}",
+                        "numbers": [n for n in _NUMBER_ORDER
+                                    if any(n in r["cells"] for r in prows)],
+                        "rows": prows,
+                    })
+
+    for tense in _TENSE_ORDER:
+        for voice in _VOICE_ORDER:
+            cells = {k[2:]: v for k, v in participle_cells.items()
+                     if k[0] == tense and k[1] == voice}
+            tables = _declension_tables(cells)
+            if tables:
+                sections.append({
+                    "kind": "participles",
+                    "label": f"{TENSE[tense]} {VOICE[voice]} participle",
+                    "tables": tables,
+                })
+
+    infinitives = []
+    for tense in _TENSE_ORDER:
+        for voice in _VOICE_ORDER:
+            forms = infinitive_forms.get((tense, voice))
+            if forms:
+                cell = _cell_out(forms)
+                infinitives.append({
+                    "label": f"{TENSE[tense]} {VOICE[voice]}",
+                    "forms": cell["forms"], "count": cell["count"],
+                })
+    if infinitives:
+        sections.append({"kind": "infinitives", "items": infinitives})
+
+    if not sections:
+        return None
+    return {"sections": sections}
 
 
 # --- HTTP ------------------------------------------------------------------

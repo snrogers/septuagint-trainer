@@ -598,6 +598,20 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink
 .occ-ref { font-size: 0.7rem; color: var(--ink-faint); text-transform: uppercase;
            letter-spacing: 0.06em; font-weight: 600; }
 .occ-text { font-family: var(--greek); font-size: 1.1rem; line-height: 1.8; }
+.ptitle { font-size: 0.82rem; font-weight: 600; color: var(--ink-soft);
+          margin: 0.9rem 0 0.3rem; text-transform: capitalize; }
+table.paradigm { width: auto; min-width: 16rem; font-size: 0.92rem;
+                 margin-bottom: 0.4rem; }
+table.paradigm th, table.paradigm td { padding: 0.3rem 0.8rem 0.3rem 0; }
+table.paradigm thead th { background: none; border-bottom: 1px solid var(--line); }
+table.paradigm tbody th { background: none; text-transform: none;
+  letter-spacing: 0; font-size: 0.82rem; color: var(--ink-faint); }
+table.paradigm tbody tr:nth-child(even) { background: none; }
+table.paradigm tbody tr:hover { background: none; }
+td.pgreek, span.pgreek { font-family: var(--greek); font-size: 1.08rem; }
+td.pempty { color: var(--ink-faint); }
+.pcount { font-size: 0.72rem; color: var(--ink-faint); }
+.pinf { font-size: 0.9rem; margin: 0.3rem 0; }
 
 /* ── footer hints ────────────────────────────────────── */
 .pagefoot {

@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from lxx import db
-from lxx.app import MAX_BODY_BYTES, Handler, Server
+from lxx.app import MAX_BODY_BYTES, Handler, Server, lemma_detail
 from export_progress import export
 
 CORPUS_SCHEMA = """
@@ -217,6 +217,92 @@ class ApiTest(unittest.TestCase):
         self.request("GET", "/api/read?from=1&n=3")
         self.request("POST", "/api/core", {"n": 10})
         self.assertEqual(sorted(p.name for p in self.data.iterdir()), ["lxx.db"])
+
+
+PARADIGM_EXTRA = """
+INSERT INTO verses VALUES
+    (4, 1, 1, 4, '', 'Gen 1:4', 4, 'ποιεῖ ποιήσας ἐποίησαν ποιῆσαι', 4),
+    (5, 1, 1, 5, '', 'Gen 1:5', 5, 'θεοῦ θεῷ θεόν θεοί θεῶν θεοῖς θεούς', 7);
+INSERT INTO tokens VALUES
+    (11, 4, 0, 'ποιεῖ', 3, 'V1', 'PAI3S', NULL),
+    (12, 4, 1, 'ποιήσας', 3, 'V1', 'AAPNSM', NULL),
+    (13, 4, 2, 'ἐποίησαν', 3, 'V1', 'AAI3P', NULL),
+    (14, 4, 3, 'ποιῆσαι', 3, 'V1', 'AAN', NULL),
+    (15, 5, 0, 'θεοῦ', 6, 'N2', 'GSM', NULL),
+    (16, 5, 1, 'θεῷ', 6, 'N2', 'DSM', NULL),
+    (17, 5, 2, 'θεόν', 6, 'N2', 'ASM', NULL),
+    (18, 5, 3, 'θεοί', 6, 'N2', 'NPM', NULL),
+    (19, 5, 4, 'θεῶν', 6, 'N2', 'GPM', NULL),
+    (20, 5, 5, 'θεοῖς', 6, 'N2', 'DPM', NULL),
+    (21, 5, 6, 'θεούς', 6, 'N2', 'APM', NULL);
+"""
+
+
+class ParadigmTest(unittest.TestCase):
+    """lemma_detail's paradigm tables group attested forms by parse code."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "lxx.db"
+        build(path, CORPUS_SCHEMA + PARADIGM_EXTRA)
+        self.con = sqlite3.connect(path)
+        self.con.row_factory = sqlite3.Row
+        self.addCleanup(self.con.close)
+
+    def paradigm(self, lemma_id):
+        return lemma_detail(self.con, lemma_id)["paradigm"]
+
+    def test_noun_declension_grid(self):
+        sections = self.paradigm(6)["sections"]
+        self.assertEqual([s["kind"] for s in sections], ["declension"])
+        (table,) = sections[0]["tables"]
+        self.assertEqual(table["gender_label"], "masculine")
+        self.assertEqual([r["label"] for r in table["rows"]],
+                         ["nominative", "genitive", "dative", "accusative"])
+        cells = {r["label"]: r["cells"] for r in table["rows"]}
+        self.assertEqual(cells["nominative"]["S"]["forms"], ["θεός"])
+        self.assertEqual(cells["nominative"]["P"]["forms"], ["θεοί"])
+        self.assertEqual(cells["genitive"]["S"]["forms"], ["θεοῦ"])
+        self.assertEqual(cells["accusative"]["P"]["forms"], ["θεούς"])
+
+    def test_verb_conjugation_participle_infinitive(self):
+        sections = self.paradigm(3)["sections"]
+        by_kind = {}
+        for s in sections:
+            by_kind.setdefault(s["kind"], []).append(s)
+        present, aorist = by_kind["conjugation"]
+        self.assertEqual(present["label"], "present active indicative")
+        self.assertEqual(present["rows"][0]["cells"]["S"]["forms"], ["ποιεῖ"])
+        self.assertEqual(aorist["label"], "aorist active indicative")
+        (row,) = aorist["rows"]
+        self.assertEqual(row["label"], "3rd")
+        self.assertEqual(row["cells"]["S"]["forms"], ["ἐποίησεν"])
+        self.assertEqual(row["cells"]["P"]["forms"], ["ἐποίησαν"])
+        (participle,) = by_kind["participles"]
+        self.assertEqual(participle["label"], "aorist active participle")
+        (table,) = participle["tables"]
+        self.assertEqual(table["rows"][0]["cells"]["S"]["forms"], ["ποιήσας"])
+        (infinitives,) = by_kind["infinitives"]
+        self.assertEqual(infinitives["items"],
+                         [{"label": "aorist active", "forms": ["ποιῆσαι"],
+                           "count": 1}])
+
+    def test_article_declines_across_genders(self):
+        sections = self.paradigm(4)["sections"]
+        tables = sections[0]["tables"]
+        self.assertEqual([t["gender_label"] for t in tables],
+                         ["masculine", "feminine"])
+        self.assertEqual(tables[0]["rows"][0]["cells"]["S"]["forms"], ["ὁ"])
+        self.assertEqual(tables[1]["rows"][0]["cells"]["S"]["forms"], ["ἡ"])
+
+    def test_indeclinable_and_single_form(self):
+        self.assertIsNone(self.paradigm(1))
+        sections = self.paradigm(2)["sections"]
+        (table,) = sections[0]["tables"]
+        self.assertEqual(table["gender_label"], "feminine")
+        self.assertEqual([r["label"] for r in table["rows"]], ["dative"])
+        self.assertEqual(table["rows"][0]["cells"]["S"]["forms"], ["ἀρχῇ"])
 
 
 @unittest.skipUnless(shutil.which("node"), "node is needed to run web/progress.js")

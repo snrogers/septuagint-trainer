@@ -104,3 +104,59 @@ def _describe_nominal(code: str) -> list[str]:
     if len(code) >= 4 and code[3] in DEGREE:
         parts.append(DEGREE[code[3]])
     return parts
+
+
+def _nominal_parts(code: str) -> dict | None:
+    """Case/number/gender(/degree) components of a nominal parse code."""
+    if len(code) < 2 or code[0] not in CASE or code[1] not in NUMBER:
+        return None
+    parts: dict = {"case": code[0], "number": code[1]}
+    if len(code) >= 3 and code[2] in GENDER:
+        parts["gender"] = code[2]
+    if len(code) >= 4 and code[3] in DEGREE:
+        parts["degree"] = code[3]
+    return parts
+
+
+def parse_parts(pos: str | None, parse: str | None) -> dict | None:
+    """Split a CATSS parse code into grammatical components, or None.
+
+    The structured companion to describe(): where describe() renders a code
+    as prose, this returns the pieces so callers can group forms into
+    paradigm tables. Returns None for indeclinables, empty codes, and codes
+    that do not fit the documented layout. The dict always carries "form":
+    "nominal", "finite", "participle", or "infinitive", plus the component
+    letters (case/number/gender/degree, or tense/voice/mood/person/number).
+    """
+    pos = (pos or "").strip()
+    code = (parse or "").strip()
+    if not code:
+        return None
+
+    if pos.startswith("V"):
+        if len(code) < 3:
+            return None
+        tense, voice, mood = code[0], code[1], code[2]
+        if tense not in TENSE or voice not in VOICE or mood not in MOOD:
+            return None
+        rest = code[3:]
+        if mood == "N":
+            return {"form": "infinitive", "tense": tense, "voice": voice}
+        if mood == "P":
+            nominal = _nominal_parts(rest)
+            if nominal is None:
+                return None
+            return {"form": "participle", "tense": tense, "voice": voice,
+                    **nominal}
+        if len(rest) >= 2 and rest[0] in PERSON and rest[1] in NUMBER:
+            return {"form": "finite", "tense": tense, "voice": voice,
+                    "mood": mood, "person": rest[0], "number": rest[1]}
+        return None
+
+    if pos[:1] in ("N", "A") or pos[:2] in ("RA", "RD", "RI", "RP", "RR"):
+        nominal = _nominal_parts(code)
+        if nominal is None:
+            return None
+        return {"form": "nominal", **nominal}
+
+    return None

@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from lxx.betacode import beta_to_plain, strip_accents, to_unicode
-from lxx.morph import describe, pos_name
+from lxx.morph import describe, parse_parts, pos_name
 from lxx.monotonic import to_monotonic
 from lxx.translit import transliterate
 from fetch_data import fetch_zip_member, read_all
@@ -110,6 +110,30 @@ class TestMorph(unittest.TestCase):
     def test_unknown_code_is_not_lost(self):
         """An unrecognised parse still surfaces rather than vanishing."""
         self.assertIn("ZZ", describe("N1", "ZZ"))
+
+    def test_parse_parts_nominal(self):
+        self.assertEqual(parse_parts("N1", "DSF"),
+                         {"form": "nominal", "case": "D", "number": "S",
+                          "gender": "F"})
+        self.assertEqual(parse_parts("A1", "ASNC"),
+                         {"form": "nominal", "case": "A", "number": "S",
+                          "gender": "N", "degree": "C"})
+
+    def test_parse_parts_verb(self):
+        self.assertEqual(parse_parts("V1", "AAI3S"),
+                         {"form": "finite", "tense": "A", "voice": "A",
+                          "mood": "I", "person": "3", "number": "S"})
+        self.assertEqual(parse_parts("V1", "AAPNSM"),
+                         {"form": "participle", "tense": "A", "voice": "A",
+                          "case": "N", "number": "S", "gender": "M"})
+        self.assertEqual(parse_parts("V1", "AAN"),
+                         {"form": "infinitive", "tense": "A", "voice": "A"})
+
+    def test_parse_parts_none(self):
+        self.assertIsNone(parse_parts("P", ""))
+        self.assertIsNone(parse_parts("X", ""))
+        self.assertIsNone(parse_parts("N1", "ZZ"))
+        self.assertIsNone(parse_parts(None, None))
 
 
 class TestTransliteration(unittest.TestCase):

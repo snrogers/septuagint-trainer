@@ -696,6 +696,61 @@ async function reloadProgress() {
 }
 
 /* ── word detail ─────────────────────────────────────── */
+/* ── paradigm tables (word detail modal) ─────────────── */
+function paradigmCell(c) {
+  if (!c) return '<td class="pempty">—</td>';
+  return `<td class="pgreek">${c.forms.map(esc).join(', ')}${c.count > 1
+    ? ` <span class="pcount">×${c.count}</span>` : ''}</td>`;
+}
+
+const PARADIGM_NUMBERS = { S: 'Singular', P: 'Plural', D: 'Dual' };
+
+function declensionTable(t) {
+  const title = [t.degree_label, t.gender_label].filter(Boolean).join(' ');
+  const head = t.numbers.map((n) => `<th>${PARADIGM_NUMBERS[n]}</th>`).join('');
+  const rows = t.rows.map((r) =>
+    `<tr><th>${esc(r.label)}</th>${t.numbers.map((n) => paradigmCell(r.cells[n])).join('')}</tr>`).join('');
+  return `${title ? `<div class="ptitle">${esc(title)}</div>` : ''}
+    <table class="paradigm"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function conjugationTable(s) {
+  const head = s.numbers.map((n) => `<th>${PARADIGM_NUMBERS[n]}</th>`).join('');
+  const rows = s.rows.map((r) =>
+    `<tr><th>${esc(r.label)}</th>${s.numbers.map((n) => paradigmCell(r.cells[n])).join('')}</tr>`).join('');
+  return `<div class="ptitle">${esc(s.label)}</div>
+    <table class="paradigm"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* Declension/conjugation tables from the corpus's attested forms only:
+   an empty cell means the corpus never uses the word in that form. */
+function paradigmHTML(p) {
+  if (!p || !p.sections || !p.sections.length) return '';
+  let html = '';
+  let verbHeaded = false;
+  for (const s of p.sections) {
+    if (s.kind === 'declension') {
+      html += '<h3 style="margin:1.4rem 0 .4rem;font-size:.95rem">Declension</h3>'
+        + '<p class="muted" style="font-size:.78rem;margin:0 0 .4rem">Forms attested in this corpus; a dash means the corpus never uses the word that way.</p>'
+        + s.tables.map(declensionTable).join('');
+      continue;
+    }
+    if (!verbHeaded) {
+      html += '<h3 style="margin:1.4rem 0 .4rem;font-size:.95rem">Conjugation</h3>'
+        + '<p class="muted" style="font-size:.78rem;margin:0 0 .4rem">Forms attested in this corpus; a dash means the corpus never uses the word that way.</p>';
+      verbHeaded = true;
+    }
+    if (s.kind === 'conjugation') html += conjugationTable(s);
+    else if (s.kind === 'participles') {
+      html += `<div class="ptitle">${esc(s.label)}</div>` + s.tables.map(declensionTable).join('');
+    } else if (s.kind === 'infinitives') {
+      html += s.items.map((i) =>
+        `<div class="pinf">${esc(i.label)} infinitive: <span class="pgreek">${i.forms.map(esc).join(', ')}</span>${i.count > 1 ? ` <span class="pcount">×${i.count}</span>` : ''}</div>`).join('');
+    }
+  }
+  return html;
+}
+
 async function showLemma(id) {
   const d = await get(`/api/lemma?id=${id}`);
   if (d.error) return;
@@ -719,6 +774,7 @@ async function showLemma(id) {
       <dt>Gloss source</dt><dd>${esc(sourceLabel(d.source))}</dd>
       ${sched}
     </dl>
+    ${paradigmHTML(d.paradigm)}
     ${!card ? '<button class="btn btn-primary" id="modal-add">Add to deck</button>' : ''}
     <h3 style="margin:1.4rem 0 .4rem;font-size:.95rem">First occurrences</h3>
     ${(d.occurrences || []).map((o) => `
