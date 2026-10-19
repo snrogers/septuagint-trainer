@@ -699,8 +699,7 @@ async function reloadProgress() {
 /* ── paradigm tables (word detail modal) ─────────────── */
 function paradigmCell(c) {
   if (!c) return '<td class="pempty">—</td>';
-  return `<td class="pgreek">${c.forms.map(esc).join(', ')}${c.count > 1
-    ? ` <span class="pcount">×${c.count}</span>` : ''}</td>`;
+  return `<td class="pgreek">${c.forms.map(esc).join(', ')}</td>`;
 }
 
 const PARADIGM_NUMBERS = { S: 'Singular', P: 'Plural', D: 'Dual' };
@@ -745,7 +744,7 @@ function paradigmHTML(p) {
       html += `<div class="ptitle">${esc(s.label)}</div>` + s.tables.map(declensionTable).join('');
     } else if (s.kind === 'infinitives') {
       html += s.items.map((i) =>
-        `<div class="pinf">${esc(i.label)} infinitive: <span class="pgreek">${i.forms.map(esc).join(', ')}</span>${i.count > 1 ? ` <span class="pcount">×${i.count}</span>` : ''}</div>`).join('');
+        `<div class="pinf">${esc(i.label)} infinitive: <span class="pgreek">${i.forms.map(esc).join(', ')}</span></div>`).join('');
     }
   }
   return html;

@@ -610,7 +610,6 @@ table.paradigm tbody tr:nth-child(even) { background: none; }
 table.paradigm tbody tr:hover { background: none; }
 td.pgreek, span.pgreek { font-family: var(--greek); font-size: 1.08rem; }
 td.pempty { color: var(--ink-faint); }
-.pcount { font-size: 0.72rem; color: var(--ink-faint); }
 .pinf { font-size: 0.9rem; margin: 0.3rem 0; }
 
 /* ── footer hints ────────────────────────────────────── */
